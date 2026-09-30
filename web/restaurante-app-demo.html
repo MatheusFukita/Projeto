@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sistema de Pedidos e Mesas — Restaurante</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #f0f1f5;
+    --border: #e2e4ea;
+    --text: #1c1f26;
+    --text-muted: #6b7280;
+    --primary: #2e5395;
+    --primary-dark: #1f3864;
+    --livre: #1f9d55;
+    --livre-bg: #e7f7ee;
+    --ocupada: #c0392b;
+    --ocupada-bg: #fdecea;
+    --reservada: #b8860b;
+    --reservada-bg: #fdf6e3;
+    --shadow: 0 2px 10px rgba(20,20,30,.08);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161c;
+      --surface: #1c1f28;
+      --surface-2: #232733;
+      --border: #2d323f;
+      --text: #e8e9ee;
+      --text-muted: #9aa0ac;
+      --livre-bg: #103823;
+      --ocupada-bg: #3a1a17;
+      --reservada-bg: #3a2f0d;
+      --shadow: 0 2px 14px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c;
+    --surface: #1c1f28;
+    --surface-2: #232733;
+    --border: #2d323f;
+    --text: #e8e9ee;
+    --text-muted: #9aa0ac;
+    --livre-bg: #103823;
+    --ocupada-bg: #3a1a17;
+    --reservada-bg: #3a2f0d;
+    --shadow: 0 2px 14px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  body { padding: 16px; }
+  h1 { font-size: 1.3rem; margin: 0 0 2px; }
+  .subtitle { color: var(--text-muted); font-size: .85rem; margin: 0 0 16px; }
+
+  .topbar {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .tabs {
+    display: flex; gap: 6px; background: var(--surface-2); padding: 4px;
+    border-radius: 10px; width: fit-content;
+  }
+  .tab {
+    border: none; background: transparent; color: var(--text-muted);
+    padding: 8px 14px; border-radius: 8px; font-size: .85rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .tab.active { background: var(--primary); color: #fff; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; font-size: .8rem; color: var(--text-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+
+  .mesa-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; cursor: pointer; box-shadow: var(--shadow);
+    transition: transform .12s ease;
+    position: relative;
+  }
+  .mesa-card:hover { transform: translateY(-2px); }
+  .mesa-card .num { font-size: 1.4rem; font-weight: 700; }
+  .mesa-card .meta { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+  .status-pill {
+    display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
+    font-size: .72rem; font-weight: 700; letter-spacing: .02em;
+  }
+  .status-LIVRE { background: var(--livre-bg); color: var(--livre); }
+  .status-OCUPADA { background: var(--ocupada-bg); color: var(--ocupada); }
+  .status-RESERVADA { background: var(--reservada-bg); color: var(--reservada); }
+  .mesa-card .total-tag {
+    position: absolute; top: 10px; right: 12px; font-size: .72rem; font-weight: 700; color: var(--ocupada);
+  }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px;
+  }
+  .card h3 { margin: 0 0 10px; font-size: 1rem; }
+
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .form-row > div { flex: 1; min-width: 140px; }
+  label { display: block; font-size: .75rem; color: var(--text-muted); margin-bottom: 4px; }
+  input, select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text); font-size: .9rem;
+  }
+  button.btn {
+    border: none; border-radius: 9px; padding: 9px 16px; font-size: .85rem; font-weight: 600;
+    cursor: pointer; background: var(--primary); color: #fff;
+  }
+  button.btn:hover { background: var(--primary-dark); }
+  button.btn.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  button.btn.danger { background: var(--ocupada); }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-size: .75rem; text-transform: uppercase; }
+
+  .totais { margin-top: 10px; font-size: .9rem; }
+  .totais div { display: flex; justify-content: space-between; padding: 3px 0; }
+  .totais .total { font-weight: 700; font-size: 1.05rem; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 8px; }
+
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 16px; padding: 20px; max-width: 480px; width: 100%;
+    max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow);
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  .modal .close-x {
+    float: right; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--text-muted);
+  }
+
+  .empty { color: var(--text-muted); font-size: .85rem; padding: 10px 0; }
+  .badge { font-size: .7rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>🍽️ Sistema de Pedidos e Mesas</h1>
+    <p class="subtitle">Restaurante — demonstração interativa (dados salvos só neste navegador)</p>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="salao">Salão</button>
+    <button class="tab" data-tab="cardapio">Cardápio</button>
+    <button class="tab" data-tab="historico">Pedidos</button>
+  </div>
+</div>
+
+<!-- SALÃO -->
+<div class="panel active" id="panel-salao">
+  <div class="legend">
+    <span><i class="dot" style="background:var(--livre)"></i> Livre</span>
+    <span><i class="dot" style="background:var(--ocupada)"></i> Ocupada</span>
+    <span><i class="dot" style="background:var(--reservada)"></i> Reservada</span>
+  </div>
+  <div class="grid" id="mesasGrid"></div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>+ Cadastrar mesa</h3>
+    <div class="form-row">
+      <div><label>Número</label><input type="number" id="novaMesaNumero" min="1"></div>
+      <div><label>Capacidade</label><input type="number" id="novaMesaCapacidade" min="1" value="4"></div>
+      <div><label>Localização</label><input type="text" id="novaMesaLocal" placeholder="Salão, Varanda..."></div>
+    </div>
+    <button class="btn" onclick="cadastrarMesa()">Cadastrar mesa</button>
+  </div>
+</div>
+
+<!-- CARDÁPIO -->
+<div class="panel" id="panel-cardapio">
+  <div class="card">
+    <h3>Cardápio</h3>
+    <table>
+      <thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Disponível</th><th></th></tr></thead>
+      <tbody id="produtosTbody"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>+ Cadastrar produto</h3>
+    <div class="form-row">
+      <div><label>Nome</label><input type="text" id="novoProdutoNome"></div>
+      <div><label>Categoria</label>
+        <select id="novoProdutoCategoria">
+          <option>Prato</option><option>Bebida</option><option>Sobremesa</option><option>Entrada</option>
+        </select>
+      </div>
+      <div><label>Preço (R$)</label><input type="number" id="novoProdutoPreco" min="0" step="0.01"></div>
+    </div>
+    <button class="btn" onclick="cadastrarProduto()">Cadastrar produto</button>
+  </div>
+</div>
+
+<!-- HISTÓRICO -->
+<div class="panel" id="panel-historico">
+  <div class="card">
+    <h3>Todos os pedidos</h3>
+    <table>
+      <thead><tr><th>#</th><th>Mesa</th><th>Garçom</th><th>Status</th><th>Total</th><th>Aberto em</th></tr></thead>
+      <tbody id="pedidosTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: abrir pedido -->
+<div class="overlay" id="overlayAbrir">
+  <div class="modal">
+    <button class="close-x" onclick="fecharModal('overlayAbrir')">✕</button>
+    <h2 id="abrirTitulo">Abrir pedido</h2>
+    <div class="form-row">
+      <div><label>Garçom responsável</label><input type="text" id="abrirGarcom" placeholder="Nome do garçom"></div>
+      <div><label>Cliente (opcional)</label><input type="text" id="abrirCliente" placeholder="Nome do cliente"></div>
+    </div>
+    <button class="btn" onclick="confirmarAbrirPedido()">Abrir pedido e ocupar mesa</button>
+  </div>
+</div>
+
+<!-- MODAL: comanda -->
+<div class="overlay" id="overlayComanda">
+  <div class="modal" style="max-width:560px;">
+    <button class="close-x" onclick="fecharModal('overlayComanda')">✕</button>
+    <h2 id="comandaTitulo">Comanda</h2>
+    <p class="empty" id="comandaSub"></p>
+
+    <table>
+      <thead><tr><th>Item</th><th>Qtd</th><th>Subtotal</th></tr></thead>
+      <tbody id="itensTbody"></tbody>
+    </table>
+    <p class="empty" id="semItens" style="display:none;">Nenhum item lançado ainda.</p>
+
+    <div class="form-row" style="margin-top:12px;">
+      <div>
+        <label>Produto</label>
+        <select id="itemProduto"></select>
+      </div>
+      <div style="max-width:90px;"><label>Qtd</label><input type="number" id="itemQtd" value="1" min="1"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Observação (opcional)</label><input type="text" id="itemObs" placeholder="ex.: sem cebola"></div>
+    </div>
+    <button class="btn secondary" onclick="adicionarItem()">+ Adicionar item</button>
+
+    <div class="totais" id="totaisBox"></div>
+
+    <div class="form-row" style="margin-top:14px;">
+      <div>
+        <label>Forma de pagamento</label>
+        <select id="formaPagamento">
+          <option value="DINHEIRO">Dinheiro</option>
+          <option value="PIX">PIX</option>
+          <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+          <option value="CARTAO_DEBITO">Cartão de Débito</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn danger" id="btnFechar" onclick="fecharComanda()">Fechar comanda (calcula total + libera mesa)</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "restaurante_app_state_v1";
+
+function moeda(v) {
+  return "R$ " + Number(v).toFixed(2).replace(".", ",");
+}
+
+function estadoPadrao() {
+  return {
+    mesas: [
+      { id: 1, numero: 1, capacidade: 2, localizacao: "Salão", status: "LIVRE" },
+      { id: 2, numero: 2, capacidade: 4, localizacao: "Salão", status: "LIVRE" },
+      { id: 3, numero: 3, capacidade: 4, localizacao: "Salão", status: "LIVRE" },
+      { id: 4, numero: 4, capacidade: 6, localizacao: "Varanda", status: "LIVRE" },
+      { id: 5, numero: 5, capacidade: 2, localizacao: "Varanda", status: "RESERVADA" },
+      { id: 6, numero: 6, capacidade: 8, localizacao: "Salão VIP", status: "LIVRE" },
+    ],
+    produtos: [
+      { id: 1, nome: "X-Burger Artesanal", categoria: "Prato", preco: 32.9, disponivel: true },
+      { id: 2, nome: "Batata Frita", categoria: "Entrada", preco: 18.5, disponivel: true },
+      { id: 3, nome: "Refrigerante Lata", categoria: "Bebida", preco: 7.0, disponivel: true },
+      { id: 4, nome: "Suco Natural", categoria: "Bebida", preco: 9.5, disponivel: true },
+      { id: 5, nome: "Pudim", categoria: "Sobremesa", preco: 12.0, disponivel: true },
+    ],
+    pedidos: [],
+    nextIds: { mesa: 7, produto: 6, pedido: 1, item: 1 },
+  };
+}
+
+let state = carregar();
+
+function carregar() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { console.warn("Falha ao ler localStorage", e); }
+  return estadoPadrao();
+}
+
+function salvar() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (e) { console.warn("Falha ao salvar localStorage", e); }
+}
+
+// ---------- Navegação por abas ----------
+document.getElementById("tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".tab");
+  if (!btn) return;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  if (btn.dataset.tab === "historico") renderHistorico();
+});
+
+// ---------- Mesas ----------
+function renderMesas() {
+  const grid = document.getElementById("mesasGrid");
+  grid.innerHTML = "";
+  state.mesas.sort((a,b)=>a.numero-b.numero).forEach(mesa => {
+    const pedidoAberto = state.pedidos.find(p => p.mesaId === mesa.id && p.status === "ABERTO");
+    const card = document.createElement("div");
+    card.className = "mesa-card";
+    card.onclick = () => onMesaClick(mesa);
+    let totalTag = "";
+    if (pedidoAberto) {
+      const { total } = calcularTotais(pedidoAberto);
+      totalTag = `<div class="total-tag">${moeda(total)}</div>`;
+    }
+    card.innerHTML = `
+      ${totalTag}
+      <div class="num">Mesa ${mesa.numero}</div>
+      <div class="meta">${mesa.capacidade} lugares · ${mesa.localizacao}</div>
+      <span class="status-pill status-${mesa.status}">${mesa.status}</span>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function cadastrarMesa() {
+  const numero = parseInt(document.getElementById("novaMesaNumero").value, 10);
+  const capacidade = parseInt(document.getElementById("novaMesaCapacidade").value, 10) || 4;
+  const local = document.getElementById("novaMesaLocal").value.trim() || "Salão";
+  if (!numero) { alert("Informe o número da mesa."); return; }
+  if (state.mesas.some(m => m.numero === numero)) { alert("Já existe uma mesa com esse número."); return; }
+  state.mesas.push({ id: state.nextIds.mesa++, numero, capacidade, localizacao: local, status: "LIVRE" });
+  document.getElementById("novaMesaNumero").value = "";
+  document.getElementById("novaMesaLocal").value = "";
+  salvar(); renderMesas();
+}
+
+let mesaSelecionada = null;
+
+function onMesaClick(mesa) {
+  mesaSelecionada = mesa;
+  if (mesa.status === "LIVRE") {
+    document.getElementById("abrirTitulo").textContent = `Abrir pedido — Mesa ${mesa.numero}`;
+    document.getElementById("abrirGarcom").value = "";
+    document.getElementById("abrirCliente").value = "";
+    abrirModal("overlayAbrir");
+  } else if (mesa.status === "OCUPADA") {
+    const pedido = state.pedidos.find(p => p.mesaId === mesa.id && p.status === "ABERTO");
+    if (pedido) abrirComanda(pedido.id);
+  } else {
+    if (confirm(`Mesa ${mesa.numero} está reservada. Deseja liberá-la?`)) {
+      mesa.status = "LIVRE"; salvar(); renderMesas();
+    }
+  }
+}
+
+function confirmarAbrirPedido() {
+  const garcom = document.getElementById("abrirGarcom").value.trim();
+  const cliente = document.getElementById("abrirCliente").value.trim();
+  if (!garcom) { alert("Informe o nome do garçom responsável."); return; }
+  const pedido = {
+    id: state.nextIds.pedido++,
+    mesaId: mesaSelecionada.id,
+    mesaNumero: mesaSelecionada.numero,
+    garcom, cliente: cliente || null,
+    itens: [],
+    status: "ABERTO",
+    dataAbertura: new Date().toISOString(),
+    dataFechamento: null,
+    formaPagamento: null,
+  };
+  state.pedidos.push(pedido);
+  mesaSelecionada.status = "OCUPADA";
+  salvar();
+  fecharModal("overlayAbrir");
+  renderMesas();
+  abrirComanda(pedido.id);
+}
+
+// ---------- Comanda / Pedido ----------
+let pedidoAtualId = null;
+
+function popularSelectProdutos() {
+  const sel = document.getElementById("itemProduto");
+  sel.innerHTML = "";
+  state.produtos.filter(p => p.disponivel).forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.nome} — ${moeda(p.preco)}`;
+    sel.appendChild(opt);
+  });
+}
+
+function calcularTotais(pedido) {
+  const subtotal = pedido.itens.reduce((s, i) => s + i.precoUnitario * i.quantidade, 0);
+  const taxa = subtotal * 0.10;
+  const total = subtotal + taxa;
+  return { subtotal, taxa, total };
+}
+
+function abrirComanda(pedidoId) {
+  pedidoAtualId = pedidoId;
+  popularSelectProdutos();
+  renderComanda();
+  abrirModal("overlayComanda");
+}
+
+function renderComanda() {
+  const pedido = state.pedidos.find(p => p.id === pedidoAtualId);
+  if (!pedido) return;
+  document.getElementById("comandaTitulo").textContent = `Mesa ${pedido.mesaNumero} — Comanda #${pedido.id}`;
+  document.getElementById("comandaSub").textContent =
+    `Garçom: ${pedido.garcom}${pedido.cliente ? " · Cliente: " + pedido.cliente : ""} · Status: ${pedido.status}`;
+
+  const tbody = document.getElementById("itensTbody");
+  tbody.innerHTML = "";
+  pedido.itens.forEach(item => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${item.produtoNome}${item.observacao ? `<br><span class="badge">${item.observacao}</span>` : ""}</td>
+      <td>${item.quantidade}</td><td>${moeda(item.precoUnitario * item.quantidade)}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById("semItens").style.display = pedido.itens.length ? "none" : "block";
+
+  const { subtotal, taxa, total } = calcularTotais(pedido);
+  document.getElementById("totaisBox").innerHTML = `
+    <div><span>Subtotal</span><span>${moeda(subtotal)}</span></div>
+    <div><span>Taxa de serviço (10%)</span><span>${moeda(taxa)}</span></div>
+    <div class="total"><span>Total</span><span>${moeda(total)}</span></div>
+  `;
+
+  const fechado = pedido.status !== "ABERTO";
+  document.getElementById("btnFechar").disabled = fechado || pedido.itens.length === 0;
+  document.getElementById("btnFechar").textContent = fechado
+    ? "Comanda já fechada"
+    : "Fechar comanda (calcula total + libera mesa)";
+  document.querySelectorAll("#overlayComanda input, #overlayComanda select").forEach(el => el.disabled = fechado);
+}
+
+function adicionarItem() {
+  const pedido = state.pedidos.find(p => p.id === pedidoAtualId);
+  const produtoId = parseInt(document.getElementById("itemProduto").value, 10);
+  const qtd = parseInt(document.getElementById("itemQtd").value, 10) || 1;
+  const obs = document.getElementById("itemObs").value.trim();
+  const produto = state.produtos.find(p => p.id === produtoId);
+  if (!produto) { alert("Selecione um produto disponível."); return; }
+  pedido.itens.push({
+    id: state.nextIds.item++, produtoId, produtoNome: produto.nome,
+    quantidade: qtd, precoUnitario: produto.preco, observacao: obs || null,
+  });
+  document.getElementById("itemQtd").value = 1;
+  document.getElementById("itemObs").value = "";
+  salvar(); renderComanda(); renderMesas();
+}
+
+function fecharComanda() {
+  const pedido = state.pedidos.find(p => p.id === pedidoAtualId);
+  if (!pedido || pedido.itens.length === 0) { alert("Pedido sem itens não pode ser fechado."); return; }
+  const forma = document.getElementById("formaPagamento").value;
+  pedido.status = "FECHADO";
+  pedido.dataFechamento = new Date().toISOString();
+  pedido.formaPagamento = forma;
+  const mesa = state.mesas.find(m => m.id === pedido.mesaId);
+  if (mesa) mesa.status = "LIVRE";
+  salvar();
+  renderComanda(); renderMesas();
+}
+
+function fecharModal(id) { document.getElementById(id).classList.remove("open"); }
+function abrirModal(id) { document.getElementById(id).classList.add("open"); }
+
+// ---------- Cardápio ----------
+function renderProdutos() {
+  const tbody = document.getElementById("produtosTbody");
+  tbody.innerHTML = "";
+  state.produtos.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.nome}</td><td>${p.categoria}</td><td>${moeda(p.preco)}</td>
+      <td>${p.disponivel ? "Sim" : "Não"}</td>
+      <td><button class="btn secondary" onclick="toggleDisponivel(${p.id})">${p.disponivel ? "Marcar indisponível" : "Marcar disponível"}</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleDisponivel(id) {
+  const p = state.produtos.find(p => p.id === id);
+  if (p) { p.disponivel = !p.disponivel; salvar(); renderProdutos(); }
+}
+
+function cadastrarProduto() {
+  const nome = document.getElementById("novoProdutoNome").value.trim();
+  const categoria = document.getElementById("novoProdutoCategoria").value;
+  const preco = parseFloat(document.getElementById("novoProdutoPreco").value);
+  if (!nome || isNaN(preco)) { alert("Informe nome e preço válidos."); return; }
+  state.produtos.push({ id: state.nextIds.produto++, nome, categoria, preco, disponivel: true });
+  document.getElementById("novoProdutoNome").value = "";
+  document.getElementById("novoProdutoPreco").value = "";
+  salvar(); renderProdutos();
+}
+
+// ---------- Histórico ----------
+function renderHistorico() {
+  const tbody = document.getElementById("pedidosTbody");
+  tbody.innerHTML = "";
+  if (!state.pedidos.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pedido registrado ainda.</td></tr>`;
+    return;
+  }
+  [...state.pedidos].reverse().forEach(p => {
+    const { total } = calcularTotais(p);
+    const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
+    tr.onclick = () => abrirComanda(p.id);
+    tr.innerHTML = `<td>#${p.id}</td><td>${p.mesaNumero}</td><td>${p.garcom}</td>
+      <td><span class="badge">${p.status}</span></td><td>${moeda(total)}</td>
+      <td>${new Date(p.dataAbertura).toLocaleString("pt-BR")}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- Init ----------
+renderMesas();
+renderProdutos();
+</script>
+</body>
+</html>

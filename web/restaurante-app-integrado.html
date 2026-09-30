@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sistema de Pedidos e Mesas — Conectado à API</title>
+<style>
+  :root {
+    --bg:#f4f5f7; --surface:#fff; --surface-2:#f0f1f5; --border:#e2e4ea;
+    --text:#1c1f26; --text-muted:#6b7280; --primary:#2e5395; --primary-dark:#1f3864;
+    --livre:#1f9d55; --livre-bg:#e7f7ee; --ocupada:#c0392b; --ocupada-bg:#fdecea;
+    --reservada:#b8860b; --reservada-bg:#fdf6e3; --shadow:0 2px 10px rgba(20,20,30,.08);
+    padding-top: env(safe-area-inset-top,0px); padding-bottom: env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#14161c; --surface:#1c1f28; --surface-2:#232733; --border:#2d323f;
+      --text:#e8e9ee; --text-muted:#9aa0ac; --livre-bg:#103823; --ocupada-bg:#3a1a17;
+      --reservada-bg:#3a2f0d; --shadow:0 2px 14px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; }
+  body { padding:16px; }
+  h1 { font-size:1.3rem; margin:0 0 2px; }
+  .subtitle { color:var(--text-muted); font-size:.85rem; margin:0 0 12px; }
+  .apiStatus { font-size:.78rem; padding:6px 12px; border-radius:8px; margin-bottom:14px; display:none; }
+  .apiStatus.ok { display:block; background:var(--livre-bg); color:var(--livre); }
+  .apiStatus.fail { display:block; background:var(--ocupada-bg); color:var(--ocupada); }
+  .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .tabs { display:flex; gap:6px; background:var(--surface-2); padding:4px; border-radius:10px; width:fit-content; }
+  .tab { border:none; background:transparent; color:var(--text-muted); padding:8px 14px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; }
+  .tab.active { background:var(--primary); color:#fff; }
+  .panel { display:none; } .panel.active { display:block; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:14px; font-size:.8rem; color:var(--text-muted); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .mesa-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; cursor:pointer; box-shadow:var(--shadow); position:relative; }
+  .mesa-card .num { font-size:1.4rem; font-weight:700; }
+  .mesa-card .meta { font-size:.78rem; color:var(--text-muted); margin-top:2px; }
+  .status-pill { display:inline-block; margin-top:10px; padding:3px 10px; border-radius:999px; font-size:.72rem; font-weight:700; }
+  .status-LIVRE { background:var(--livre-bg); color:var(--livre); }
+  .status-OCUPADA { background:var(--ocupada-bg); color:var(--ocupada); }
+  .status-RESERVADA { background:var(--reservada-bg); color:var(--reservada); }
+  .mesa-card .total-tag { position:absolute; top:10px; right:12px; font-size:.72rem; font-weight:700; color:var(--ocupada); }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
+  .card h3 { margin:0 0 10px; font-size:1rem; }
+  .form-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .form-row > div { flex:1; min-width:140px; }
+  label { display:block; font-size:.75rem; color:var(--text-muted); margin-bottom:4px; }
+  input, select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:.9rem; }
+  button.btn { border:none; border-radius:9px; padding:9px 16px; font-size:.85rem; font-weight:600; cursor:pointer; background:var(--primary); color:#fff; }
+  button.btn:hover { background:var(--primary-dark); }
+  button.btn.secondary { background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
+  button.btn.danger { background:var(--ocupada); }
+  button.btn:disabled { opacity:.5; cursor:not-allowed; }
+  table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--border); }
+  th { color:var(--text-muted); font-size:.75rem; text-transform:uppercase; }
+  .totais { margin-top:10px; font-size:.9rem; }
+  .totais div { display:flex; justify-content:space-between; padding:3px 0; }
+  .totais .total { font-weight:700; font-size:1.05rem; border-top:1px solid var(--border); margin-top:6px; padding-top:8px; }
+  .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .overlay.open { display:flex; }
+  .modal { background:var(--surface); border-radius:16px; padding:20px; max-width:480px; width:100%; max-height:88vh; overflow-y:auto; box-shadow:var(--shadow); }
+  .modal h2 { margin:0 0 4px; font-size:1.1rem; }
+  .modal .close-x { float:right; background:none; border:none; font-size:1.1rem; cursor:pointer; color:var(--text-muted); }
+  .empty { color:var(--text-muted); font-size:.85rem; padding:10px 0; }
+  .badge { font-size:.7rem; padding:2px 8px; border-radius:999px; background:var(--surface-2); color:var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>🍽️ Sistema de Pedidos e Mesas</h1>
+    <p class="subtitle">Conectado à API Java / MySQL real (não usa localStorage)</p>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="salao">Salão</button>
+    <button class="tab" data-tab="cardapio">Cardápio</button>
+    <button class="tab" data-tab="clientes">Clientes</button>
+    <button class="tab" data-tab="historico">Pedidos</button>
+  </div>
+</div>
+<div class="apiStatus" id="apiStatus"></div>
+
+<!-- SALÃO -->
+<div class="panel active" id="panel-salao">
+  <div class="legend">
+    <span><i class="dot" style="background:var(--livre)"></i> Livre</span>
+    <span><i class="dot" style="background:var(--ocupada)"></i> Ocupada</span>
+    <span><i class="dot" style="background:var(--reservada)"></i> Reservada</span>
+  </div>
+  <div class="grid" id="mesasGrid"></div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>+ Cadastrar mesa</h3>
+    <div class="form-row">
+      <div><label>Número</label><input type="number" id="novaMesaNumero" min="1"></div>
+      <div><label>Capacidade</label><input type="number" id="novaMesaCapacidade" min="1" value="4"></div>
+      <div><label>Localização</label><input type="text" id="novaMesaLocal" placeholder="Salão, Varanda..."></div>
+    </div>
+    <button class="btn" onclick="cadastrarMesa()">Cadastrar mesa</button>
+  </div>
+</div>
+
+<!-- CARDÁPIO -->
+<div class="panel" id="panel-cardapio">
+  <div class="card">
+    <h3>Cardápio</h3>
+    <table>
+      <thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Disponível</th><th></th></tr></thead>
+      <tbody id="produtosTbody"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>+ Cadastrar produto</h3>
+    <div class="form-row">
+      <div><label>Nome</label><input type="text" id="novoProdutoNome"></div>
+      <div><label>Categoria</label>
+        <select id="novoProdutoCategoria"><option>Prato</option><option>Bebida</option><option>Sobremesa</option><option>Entrada</option></select>
+      </div>
+      <div><label>Preço (R$)</label><input type="number" id="novoProdutoPreco" min="0" step="0.01"></div>
+      <div><label>Tempo preparo (min)</label><input type="number" id="novoProdutoTempo" min="0" value="15"></div>
+    </div>
+    <div class="form-row"><div><label>Descrição</label><input type="text" id="novoProdutoDescricao"></div></div>
+    <button class="btn" onclick="cadastrarProduto()">Cadastrar produto</button>
+  </div>
+</div>
+
+<!-- CLIENTES -->
+<div class="panel" id="panel-clientes">
+  <div class="card">
+    <h3>Clientes cadastrados</h3>
+    <table>
+      <thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th></tr></thead>
+      <tbody id="clientesTbody"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>+ Cadastrar cliente</h3>
+    <div class="form-row">
+      <div><label>Nome</label><input type="text" id="novoClienteNome"></div>
+      <div><label>Telefone</label><input type="text" id="novoClienteTelefone"></div>
+      <div><label>CPF</label><input type="text" id="novoClienteCpf"></div>
+    </div>
+    <button class="btn" onclick="cadastrarCliente()">Cadastrar cliente</button>
+  </div>
+</div>
+
+<!-- HISTÓRICO -->
+<div class="panel" id="panel-historico">
+  <div class="card">
+    <h3>Todos os pedidos</h3>
+    <table>
+      <thead><tr><th>#</th><th>Mesa</th><th>Garçom</th><th>Status</th><th>Total</th><th>Aberto em</th></tr></thead>
+      <tbody id="pedidosTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: abrir pedido -->
+<div class="overlay" id="overlayAbrir">
+  <div class="modal">
+    <button class="close-x" onclick="fecharModal('overlayAbrir')">✕</button>
+    <h2 id="abrirTitulo">Abrir pedido</h2>
+    <div class="form-row">
+      <div><label>Garçom responsável</label><input type="text" id="abrirGarcom" placeholder="Nome do garçom"></div>
+      <div><label>Cliente (opcional)</label>
+        <select id="abrirCliente"><option value="">Nenhum</option></select>
+      </div>
+    </div>
+    <button class="btn" onclick="confirmarAbrirPedido()">Abrir pedido e ocupar mesa</button>
+  </div>
+</div>
+
+<!-- MODAL: comanda -->
+<div class="overlay" id="overlayComanda">
+  <div class="modal" style="max-width:560px;">
+    <button class="close-x" onclick="fecharModal('overlayComanda')">✕</button>
+    <h2 id="comandaTitulo">Comanda</h2>
+    <p class="empty" id="comandaSub"></p>
+    <table>
+      <thead><tr><th>Item</th><th>Qtd</th><th>Subtotal</th></tr></thead>
+      <tbody id="itensTbody"></tbody>
+    </table>
+    <p class="empty" id="semItens" style="display:none;">Nenhum item lançado ainda.</p>
+    <div class="form-row" style="margin-top:12px;">
+      <div><label>Produto</label><select id="itemProduto"></select></div>
+      <div style="max-width:90px;"><label>Qtd</label><input type="number" id="itemQtd" value="1" min="1"></div>
+    </div>
+    <div class="form-row"><div><label>Observação (opcional)</label><input type="text" id="itemObs" placeholder="ex.: sem cebola"></div></div>
+    <button class="btn secondary" onclick="adicionarItem()">+ Adicionar item</button>
+    <div class="totais" id="totaisBox"></div>
+    <div class="form-row" style="margin-top:14px;">
+      <div>
+        <label>Forma de pagamento</label>
+        <select id="formaPagamento">
+          <option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option>
+          <option value="CARTAO_CREDITO">Cartão de Crédito</option><option value="CARTAO_DEBITO">Cartão de Débito</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn danger" id="btnFechar" onclick="fecharComanda()">Fechar comanda (calcula total + libera mesa)</button>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8080/api";
+
+function moeda(v) { return "R$ " + Number(v).toFixed(2).replace(".", ","); }
+
+async function apiGet(path) {
+  const r = await fetch(API_BASE + path);
+  if (!r.ok) throw new Error((await r.json().catch(()=>({erro:r.statusText}))).erro || "Erro na API");
+  return r.json();
+}
+async function apiSend(path, method, body) {
+  const r = await fetch(API_BASE + path, {
+    method, headers: { "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw new Error((await r.json().catch(()=>({erro:r.statusText}))).erro || "Erro na API");
+  return r.json();
+}
+
+async function checarApi() {
+  const el = document.getElementById("apiStatus");
+  try {
+    await apiGet("/mesas");
+    el.className = "apiStatus ok";
+    el.textContent = "✅ Conectado à API em " + API_BASE;
+  } catch (e) {
+    el.className = "apiStatus fail";
+    el.textContent = "⚠️ Não foi possível conectar à API em " + API_BASE +
+      ". Rode: java -cp target/restaurante-app.jar com.restaurante.ApiMain (e confira se o MySQL está no ar).";
+  }
+}
+
+document.getElementById("tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".tab");
+  if (!btn) return;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  if (btn.dataset.tab === "historico") renderHistorico();
+  if (btn.dataset.tab === "clientes") renderClientes();
+});
+
+// ---------- Mesas ----------
+async function renderMesas() {
+  let mesas = [], pedidos = [];
+  try {
+    [mesas, pedidos] = await Promise.all([apiGet("/mesas"), apiGet("/pedidos")]);
+  } catch (e) { return; }
+  const grid = document.getElementById("mesasGrid");
+  grid.innerHTML = "";
+  mesas.sort((a,b)=>a.numero-b.numero).forEach(mesa => {
+    const pedidoAberto = pedidos.find(p => p.mesa && p.mesa.id === mesa.id && p.status === "ABERTO");
+    const card = document.createElement("div");
+    card.className = "mesa-card";
+    card.onclick = () => onMesaClick(mesa, pedidoAberto);
+    const totalTag = pedidoAberto ? `<div class="total-tag">${moeda(pedidoAberto.valorTotal)}</div>` : "";
+    card.innerHTML = `${totalTag}
+      <div class="num">Mesa ${mesa.numero}</div>
+      <div class="meta">${mesa.capacidade} lugares · ${mesa.localizacao}</div>
+      <span class="status-pill status-${mesa.status}">${mesa.status}</span>`;
+    grid.appendChild(card);
+  });
+}
+
+async function cadastrarMesa() {
+  const numero = parseInt(document.getElementById("novaMesaNumero").value, 10);
+  const capacidade = parseInt(document.getElementById("novaMesaCapacidade").value, 10) || 4;
+  const localizacao = document.getElementById("novaMesaLocal").value.trim() || "Salão";
+  if (!numero) { alert("Informe o número da mesa."); return; }
+  try {
+    await apiSend("/mesas", "POST", { numero, capacidade, localizacao });
+    document.getElementById("novaMesaNumero").value = "";
+    document.getElementById("novaMesaLocal").value = "";
+    renderMesas();
+  } catch (e) { alert("Erro: " + e.message); }
+}
+
+let mesaSelecionada = null;
+
+async function onMesaClick(mesa, pedidoAberto) {
+  mesaSelecionada = mesa;
+  if (mesa.status === "LIVRE") {
+    document.getElementById("abrirTitulo").textContent = `Abrir pedido — Mesa ${mesa.numero}`;
+    document.getElementById("abrirGarcom").value = "";
+    await popularSelectClientes();
+    abrirModal("overlayAbrir");
+  } else if (mesa.status === "OCUPADA" && pedidoAberto) {
+    abrirComanda(pedidoAberto.id);
+  } else {
+    alert("Mesa reservada — sem pedido em aberto no momento.");
+  }
+}
+
+async function popularSelectClientes() {
+  const sel = document.getElementById("abrirCliente");
+  sel.innerHTML = '<option value="">Nenhum</option>';
+  try {
+    const clientes = await apiGet("/clientes");
+    clientes.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id; opt.textContent = c.nome;
+      sel.appendChild(opt);
+    });
+  } catch (e) { /* segue sem clientes */ }
+}
+
+async function confirmarAbrirPedido() {
+  const garcom = document.getElementById("abrirGarcom").value.trim();
+  const clienteIdRaw = document.getElementById("abrirCliente").value;
+  if (!garcom) { alert("Informe o nome do garçom responsável."); return; }
+  try {
+    const pedido = await apiSend("/pedidos", "POST", {
+      mesaId: mesaSelecionada.id,
+      clienteId: clienteIdRaw ? parseInt(clienteIdRaw, 10) : null,
+      garcom,
+    });
+    fecharModal("overlayAbrir");
+    await renderMesas();
+    abrirComanda(pedido.id);
+  } catch (e) { alert("Erro ao abrir pedido: " + e.message); }
+}
+
+// ---------- Comanda ----------
+let pedidoAtualId = null;
+
+async function popularSelectProdutos() {
+  const sel = document.getElementById("itemProduto");
+  sel.innerHTML = "";
+  const produtos = await apiGet("/produtos");
+  produtos.filter(p => p.disponivel).forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id; opt.textContent = `${p.nome} — ${moeda(p.preco)}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function abrirComanda(pedidoId) {
+  pedidoAtualId = pedidoId;
+  await popularSelectProdutos();
+  await renderComanda();
+  abrirModal("overlayComanda");
+}
+
+async function renderComanda() {
+  let pedido;
+  try { pedido = await apiGet("/pedidos/" + pedidoAtualId); }
+  catch (e) { alert("Erro ao carregar pedido: " + e.message); return; }
+
+  document.getElementById("comandaTitulo").textContent = `Mesa ${pedido.mesa.numero} — Comanda #${pedido.id}`;
+  document.getElementById("comandaSub").textContent =
+    `Garçom: ${pedido.garcom}${pedido.cliente ? " · Cliente: " + pedido.cliente.nome : ""} · Status: ${pedido.status}`;
+
+  const tbody = document.getElementById("itensTbody");
+  tbody.innerHTML = "";
+  (pedido.itens || []).forEach(item => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${item.produto.nome}${item.observacao ? `<br><span class="badge">${item.observacao}</span>` : ""}</td>
+      <td>${item.quantidade}</td><td>${moeda(item.precoUnitario * item.quantidade)}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById("semItens").style.display = (pedido.itens||[]).length ? "none" : "block";
+
+  document.getElementById("totaisBox").innerHTML = `
+    <div><span>Subtotal</span><span>${moeda(pedido.subtotal)}</span></div>
+    <div><span>Taxa de serviço (10%)</span><span>${moeda(pedido.taxaServico)}</span></div>
+    <div class="total"><span>Total</span><span>${moeda(pedido.valorTotal)}</span></div>`;
+
+  const fechado = pedido.status !== "ABERTO";
+  document.getElementById("btnFechar").disabled = fechado || (pedido.itens||[]).length === 0;
+  document.getElementById("btnFechar").textContent = fechado ? "Comanda já fechada" : "Fechar comanda (calcula total + libera mesa)";
+  document.querySelectorAll("#overlayComanda input, #overlayComanda select").forEach(el => el.disabled = fechado);
+}
+
+async function adicionarItem() {
+  const produtoId = parseInt(document.getElementById("itemProduto").value, 10);
+  const quantidade = parseInt(document.getElementById("itemQtd").value, 10) || 1;
+  const observacao = document.getElementById("itemObs").value.trim() || null;
+  if (!produtoId) { alert("Selecione um produto disponível."); return; }
+  try {
+    await apiSend(`/pedidos/${pedidoAtualId}/itens`, "POST", { produtoId, quantidade, observacao });
+    document.getElementById("itemQtd").value = 1;
+    document.getElementById("itemObs").value = "";
+    await renderComanda(); await renderMesas();
+  } catch (e) { alert("Erro ao adicionar item: " + e.message); }
+}
+
+async function fecharComanda() {
+  const formaPagamento = document.getElementById("formaPagamento").value;
+  try {
+    await apiSend(`/pedidos/${pedidoAtualId}/fechar`, "POST", { formaPagamento });
+    await renderComanda(); await renderMesas();
+  } catch (e) { alert("Erro ao fechar comanda: " + e.message); }
+}
+
+function fecharModal(id) { document.getElementById(id).classList.remove("open"); }
+function abrirModal(id) { document.getElementById(id).classList.add("open"); }
+
+// ---------- Cardápio ----------
+async function renderProdutos() {
+  let produtos = [];
+  try { produtos = await apiGet("/produtos"); } catch (e) { return; }
+  const tbody = document.getElementById("produtosTbody");
+  tbody.innerHTML = "";
+  produtos.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.nome}</td><td>${p.categoria}</td><td>${moeda(p.preco)}</td>
+      <td>${p.disponivel ? "Sim" : "Não"}</td>
+      <td><button class="btn secondary" onclick="toggleDisponivel(${p.id})">${p.disponivel ? "Marcar indisponível" : "Marcar disponível"}</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function toggleDisponivel(id) {
+  try { await apiSend(`/produtos/${id}/toggle`, "PATCH"); renderProdutos(); }
+  catch (e) { alert("Erro: " + e.message); }
+}
+
+async function cadastrarProduto() {
+  const nome = document.getElementById("novoProdutoNome").value.trim();
+  const categoria = document.getElementById("novoProdutoCategoria").value;
+  const preco = parseFloat(document.getElementById("novoProdutoPreco").value);
+  const tempoPreparoMin = parseInt(document.getElementById("novoProdutoTempo").value, 10) || 0;
+  const descricao = document.getElementById("novoProdutoDescricao").value.trim();
+  if (!nome || isNaN(preco)) { alert("Informe nome e preço válidos."); return; }
+  try {
+    await apiSend("/produtos", "POST", { nome, categoria, preco, descricao, tempoPreparoMin });
+    document.getElementById("novoProdutoNome").value = "";
+    document.getElementById("novoProdutoPreco").value = "";
+    document.getElementById("novoProdutoDescricao").value = "";
+    renderProdutos();
+  } catch (e) { alert("Erro: " + e.message); }
+}
+
+// ---------- Clientes ----------
+async function renderClientes() {
+  let clientes = [];
+  try { clientes = await apiGet("/clientes"); } catch (e) { return; }
+  const tbody = document.getElementById("clientesTbody");
+  tbody.innerHTML = clientes.length ? "" : `<tr><td colspan="3" class="empty">Nenhum cliente cadastrado.</td></tr>`;
+  clientes.forEach(c => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${c.nome}</td><td>${c.telefone||""}</td><td>${c.cpf||""}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function cadastrarCliente() {
+  const nome = document.getElementById("novoClienteNome").value.trim();
+  const telefone = document.getElementById("novoClienteTelefone").value.trim();
+  const cpf = document.getElementById("novoClienteCpf").value.trim();
+  if (!nome) { alert("Informe o nome do cliente."); return; }
+  try {
+    await apiSend("/clientes", "POST", { nome, telefone, cpf });
+    document.getElementById("novoClienteNome").value = "";
+    document.getElementById("novoClienteTelefone").value = "";
+    document.getElementById("novoClienteCpf").value = "";
+    renderClientes();
+  } catch (e) { alert("Erro: " + e.message); }
+}
+
+// ---------- Histórico ----------
+async function renderHistorico() {
+  let pedidos = [];
+  try { pedidos = await apiGet("/pedidos"); } catch (e) { return; }
+  const tbody = document.getElementById("pedidosTbody");
+  if (!pedidos.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pedido registrado ainda.</td></tr>`; return; }
+  tbody.innerHTML = "";
+  [...pedidos].reverse().forEach(p => {
+    const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
+    tr.onclick = () => abrirComanda(p.id);
+    tr.innerHTML = `<td>#${p.id}</td><td>${p.mesa.numero}</td><td>${p.garcom}</td>
+      <td><span class="badge">${p.status}</span></td><td>${moeda(p.valorTotal)}</td>
+      <td>${new Date(p.dataAbertura).toLocaleString("pt-BR")}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- Init ----------
+checarApi();
+renderMesas();
+renderProdutos();
+</script>
+</body>
+</html>
